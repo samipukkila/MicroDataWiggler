@@ -1,0 +1,41 @@
+{
+  // See https://go.microsoft.com/fwlink/?LinkId=733558
+  // for the documentation about the tasks.json format
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build debug",
+      "type": "shell",
+      "command": "./run.bash build-debug",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "run_unit_tests",
+      "type": "shell",
+      "command": "./run.bash test",
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "build_and_run_unit_tests",
+      "type": "shell",
+      "dependsOn": [
+        "Build debug",
+        "run_unit_tests"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      }
+    },
+  ],
+}

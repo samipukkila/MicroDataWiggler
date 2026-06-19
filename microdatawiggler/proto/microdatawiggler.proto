@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package microdatawiggler;
+
+service MemoryService {
+  rpc Session(stream MemoryRequest) returns (stream MemoryResponse);
+}
+
+message ReadRequest {
+  uint64 address = 1;
+  uint32 length = 2;
+}
+
+message WriteRequest {
+  uint64 address = 1;
+  bytes data = 2;
+}
+
+message ReadResponse {
+  bytes data = 1;
+}
+
+message WriteResponse {}
+
+message ErrorResponse {
+  string message = 1;
+}
+
+message MemoryRequest {
+  oneof request {
+    ReadRequest read = 1;
+    WriteRequest write = 2;
+  }
+}
+
+message MemoryResponse {
+  oneof response {
+    ReadResponse read = 1;
+    WriteResponse write = 2;
+    ErrorResponse error = 3;
+  }
+}

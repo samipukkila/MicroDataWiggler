@@ -1,0 +1,11 @@
+add_integration_test(
+  TEST_NAME
+    stlink_probe_integration_test
+  SRCS
+    stlink_probe_integration_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/stlink_probe.cpp
+  HDRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../inc
+  LIBS
+    PkgConfig::STLINK
+)

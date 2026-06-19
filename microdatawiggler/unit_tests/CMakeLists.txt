@@ -1,0 +1,25 @@
+add_unit_test(
+  TEST_NAME
+    stlink_probe_test
+  SRCS
+    stlink_probe_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/stlink_probe.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fakes/stlink.c
+  HDRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../inc
+    ${CMAKE_CURRENT_SOURCE_DIR}/../fakes
+)
+
+add_unit_test(
+  TEST_NAME
+    memory_service_test
+  SRCS
+    memory_service_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src/memory_service.cpp
+  HDRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../inc
+    ${PROTO_OUT_DIR}
+  LIBS
+    GTest::gmock
+    microdatawiggler_proto_lib
+)

@@ -1,0 +1,243 @@
+name: Microdatawiggler CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  DEV_IMAGE: ghcr.io/${{ github.repository_owner }}/microdatawiggler-development
+  MICRODATAWIGGLER_IMAGE: ghcr.io/${{ github.repository_owner }}/microdatawiggler
+
+jobs:
+  build-dev-image:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push dev image
+      uses: docker/build-push-action@v7
+      with:
+        context: ./images/development
+        push: true
+        tags: ${{ env.DEV_IMAGE }}:latest
+        cache-from: type=registry,ref=${{ env.DEV_IMAGE }}:latest
+        cache-to: type=inline
+
+  build:
+    runs-on: ubuntu-latest
+    needs: build-dev-image
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull dev image
+      run: |
+        docker pull ${{ env.DEV_IMAGE }}:latest
+        docker tag ${{ env.DEV_IMAGE }}:latest microdatawiggler-development
+
+    - name: Build
+      run: ./run.bash build-debug
+
+    - name: Archive build output
+      run: tar cf /tmp/build-output.tar build/ CMakeUserPresets.json conan_cache/
+
+    - name: Upload build output
+      uses: actions/upload-artifact@v6
+      with:
+        name: build-output
+        path: /tmp/build-output.tar
+        retention-days: 1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull dev image
+      run: |
+        docker pull ${{ env.DEV_IMAGE }}:latest
+        docker tag ${{ env.DEV_IMAGE }}:latest microdatawiggler-development
+
+    - name: Download build output
+      uses: actions/download-artifact@v7
+      with:
+        name: build-output
+        path: /tmp
+
+    - name: Extract build output
+      run: tar xf /tmp/build-output.tar
+
+    - name: Run unit tests
+      run: ./run.bash unit-tests
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    needs: build-dev-image
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull dev image
+      run: |
+        docker pull ${{ env.DEV_IMAGE }}:latest
+        docker tag ${{ env.DEV_IMAGE }}:latest microdatawiggler-development
+
+    - name: Test code formatting
+      run: ./run.bash check-formatting
+
+    - name: Generate doxygen documentation
+      if: always()
+      run: ./run.bash doxygen
+
+    - uses: actions/upload-artifact@v6
+      with:
+        name: code-documentation
+        path: |
+          doxygen_output/
+
+  clang-tidy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull dev image
+      run: |
+        docker pull ${{ env.DEV_IMAGE }}:latest
+        docker tag ${{ env.DEV_IMAGE }}:latest microdatawiggler-development
+
+    - name: Download build output
+      uses: actions/download-artifact@v7
+      with:
+        name: build-output
+        path: /tmp
+
+    - name: Extract build output
+      run: tar xf /tmp/build-output.tar
+
+    - name: Run clang-tidy
+      run: ./run.bash check-tidy
+
+  package:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Pull dev image
+      run: |
+        docker pull ${{ env.DEV_IMAGE }}:latest
+        docker tag ${{ env.DEV_IMAGE }}:latest microdatawiggler-development
+
+    - name: Download build output
+      uses: actions/download-artifact@v7
+      with:
+        name: build-output
+        path: /tmp
+
+    - name: Extract build output
+      run: tar xf /tmp/build-output.tar
+
+    - name: Compute version
+      id: version
+      run: |
+        BRANCH="${{ github.ref_name }}"
+        SAFE_BRANCH="${BRANCH//[^a-zA-Z0-9]/-}"
+        DATE=$(date -u +%Y%m%d)
+        RUN="${{ github.run_number }}"
+        echo "pkg_version=0.1.0+${SAFE_BRANCH}.${DATE}.${RUN}" >> "$GITHUB_OUTPUT"
+        echo "docker_tag=${SAFE_BRANCH}-${DATE}-${RUN}" >> "$GITHUB_OUTPUT"
+
+    - name: Build .deb package
+      env:
+        PACKAGE_VERSION: ${{ steps.version.outputs.pkg_version }}
+      run: ./run.bash package-deb
+
+    - name: Build Python wheels
+      env:
+        PACKAGE_VERSION: ${{ steps.version.outputs.pkg_version }}
+      run: ./run.bash build-python-packages
+
+    - name: Build and push microdatawiggler image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        file: images/microdatawiggler/Dockerfile
+        push: true
+        tags: |
+          ${{ env.MICRODATAWIGGLER_IMAGE }}:latest
+          ${{ env.MICRODATAWIGGLER_IMAGE }}:${{ steps.version.outputs.docker_tag }}
+
+    - name: Upload .deb package
+      uses: actions/upload-artifact@v6
+      with:
+        name: deb-package
+        path: build/Debug/*.deb
+
+    - name: Upload Python wheels
+      uses: actions/upload-artifact@v6
+      with:
+        name: python-wheels
+        path: |
+          python/microdatawiggler/dist/
