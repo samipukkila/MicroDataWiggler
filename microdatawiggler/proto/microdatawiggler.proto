@@ -16,6 +16,21 @@ message WriteRequest {
   bytes data = 2;
 }
 
+message VariableSpec {
+  uint64 address = 1;
+  uint32 length = 2;
+}
+
+message StartRecordRequest {
+  repeated VariableSpec variables = 1;
+  uint32 sample_rate_hz = 2;
+  uint32 max_samples = 3;
+}
+
+message StopRecordRequest {}
+
+message FetchRecordRequest {}
+
 message ReadResponse {
   bytes data = 1;
 }
@@ -26,10 +41,23 @@ message ErrorResponse {
   string message = 1;
 }
 
+message RecordSample {
+  uint64 timestamp_us = 1;
+  repeated bytes data = 2;
+}
+
+message RecordDataResponse {
+  repeated RecordSample samples = 1;
+  bool capped = 2;
+}
+
 message MemoryRequest {
   oneof request {
     ReadRequest read = 1;
     WriteRequest write = 2;
+    StartRecordRequest start_record = 3;
+    StopRecordRequest stop_record = 4;
+    FetchRecordRequest fetch_record = 5;
   }
 }
 
@@ -38,5 +66,6 @@ message MemoryResponse {
     ReadResponse read = 1;
     WriteResponse write = 2;
     ErrorResponse error = 3;
+    RecordDataResponse record_data = 4;
   }
 }
