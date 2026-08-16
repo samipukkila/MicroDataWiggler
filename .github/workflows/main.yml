@@ -24,9 +24,9 @@ jobs:
         REPO: ${{ github.repository }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        for name in major minor patch; do
-          gh label create "$name" --repo "$REPO" --color ededed --force >/dev/null
-        done
+        gh label create major --repo "$REPO" --color b60205 --description "Breaking change: bumps the major version" --force >/dev/null
+        gh label create minor --repo "$REPO" --color fbca04 --description "New functionality: bumps the minor version" --force >/dev/null
+        gh label create patch --repo "$REPO" --color 0e8a16 --description "Fix or other non-breaking change: bumps the patch version" --force >/dev/null
 
         CURRENT=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels -q '.labels[].name')
         if echo "$CURRENT" | grep -qE '^(major|minor|patch)$'; then
