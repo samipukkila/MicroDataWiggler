@@ -1,0 +1,89 @@
+name: Release
+
+# Fires when a PR is merged into main. The PR must carry exactly one of the
+# "major" / "minor" / "patch" labels — that label decides how VERSION is
+# bumped. The workflow commits the new VERSION file straight to main, tags
+# it, builds the .deb and Python wheel, and publishes a GitHub Release with
+# those artifacts attached.
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          submodules: "recursive"
+
+      - name: Determine version bump from PR label
+        id: bump
+        env:
+          LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          echo "PR labels: $LABELS_JSON"
+          BUMP=$(echo "$LABELS_JSON" | jq -r '
+            [.[] | select(. == "major" or . == "minor" or . == "patch")]
+            | if length == 1 then .[0] else empty end
+          ')
+          if [ -z "$BUMP" ]; then
+            echo "::error::PR must have exactly one of the labels 'major', 'minor', or 'patch' to determine the release version bump (found: $LABELS_JSON)."
+            exit 1
+          fi
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+
+      - name: Compute new version
+        id: version
+        run: |
+          CURRENT=$(tr -d '[:space:]' < VERSION)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH + 1)) ;;
+          esac
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "Bumping $CURRENT -> $NEW_VERSION (${{ steps.bump.outputs.bump }})"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit VERSION bump and tag
+        run: |
+          echo "${{ steps.version.outputs.new_version }}" > VERSION
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git commit -m "chore: release ${{ steps.version.outputs.new_version }} [skip ci]"
+          git tag "${{ steps.version.outputs.new_version }}"
+          git push origin HEAD:${{ github.event.pull_request.base.ref }}
+          git push origin "${{ steps.version.outputs.new_version }}"
+
+      - name: Build dev image
+        run: ./run.bash build-container
+
+      - name: Build
+        run: ./run.bash build-debug
+
+      - name: Build .deb package
+        run: ./run.bash package-deb
+
+      - name: Build Python wheel
+        run: ./run.bash build-python-packages
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.new_version }}" \
+            build/Debug/*.deb \
+            python/microdatawiggler/dist/* \
+            --title "${{ steps.version.outputs.new_version }}" \
+            --generate-notes
