@@ -1,15 +1,26 @@
 import os
+import subprocess
 from pathlib import Path
 from setuptools import setup
 from setuptools.command.build_py import build_py
 
 PROTO_DIR = Path(__file__).resolve().parent.parent.parent / "microdatawiggler" / "proto"
 OUT_DIR = Path(__file__).resolve().parent / "src" / "microdatawiggler"
-VERSION_FILE = Path(__file__).resolve().parent.parent.parent / "VERSION"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def read_version():
-    return os.environ.get("PACKAGE_VERSION") or VERSION_FILE.read_text().strip()
+    override = os.environ.get("PACKAGE_VERSION")
+    if override:
+        return override
+    try:
+        return subprocess.check_output(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            cwd=REPO_ROOT,
+            text=True,
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "0.0.0"
 
 
 def generate_proto():
