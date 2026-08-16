@@ -1,10 +1,11 @@
 name: Release
 
 # Fires when a PR is merged into main. The PR must carry exactly one of the
-# "major" / "minor" / "patch" labels — that label decides how VERSION is
-# bumped. The workflow commits the new VERSION file straight to main, tags
-# it, builds the .deb and Python wheel, and publishes a GitHub Release with
-# those artifacts attached.
+# "major" / "minor" / "patch" labels — that label decides how the version is
+# bumped relative to the latest git tag. The workflow tags the merge commit
+# (no commit to main needed, so it works fine with branch protection), builds
+# the .deb and Python wheel, and publishes a GitHub Release with those
+# artifacts attached.
 on:
   pull_request:
     types: [closed]
@@ -44,7 +45,7 @@ jobs:
       - name: Compute new version
         id: version
         run: |
-          CURRENT=$(tr -d '[:space:]' < VERSION)
+          CURRENT=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
           case "${{ steps.bump.outputs.bump }}" in
             major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
@@ -55,15 +56,11 @@ jobs:
           echo "Bumping $CURRENT -> $NEW_VERSION (${{ steps.bump.outputs.bump }})"
           echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Commit VERSION bump and tag
+      - name: Tag release
         run: |
-          echo "${{ steps.version.outputs.new_version }}" > VERSION
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
-          git commit -m "chore: release ${{ steps.version.outputs.new_version }} [skip ci]"
           git tag "${{ steps.version.outputs.new_version }}"
-          git push origin HEAD:${{ github.event.pull_request.base.ref }}
           git push origin "${{ steps.version.outputs.new_version }}"
 
       - name: Build dev image
@@ -73,9 +70,13 @@ jobs:
         run: ./run.bash build-debug
 
       - name: Build .deb package
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.new_version }}
         run: ./run.bash package-deb
 
       - name: Build Python wheel
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.new_version }}
         run: ./run.bash build-python-packages
 
       - name: Create GitHub release
