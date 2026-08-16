@@ -90,9 +90,6 @@ case "$1" in
     ;;
   build-python-packages)
     $DOCKER_RUN -e "PACKAGE_VERSION=${PACKAGE_VERSION:-}" "$IMAGE" bash -c '
-      if [ -n "${PACKAGE_VERSION}" ]; then
-        sed -i "s/^version = .*/version = \"${PACKAGE_VERSION}\"/" "python/microdatawiggler/pyproject.toml"
-      fi
       python3 -m build --wheel "python/microdatawiggler"
     '
     ;;

@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.14)
 
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" MICRODATAWIGGLER_VERSION LIMIT_COUNT 1)
+
 project(
   Microdatawiggler
-  VERSION 0.1
+  VERSION ${MICRODATAWIGGLER_VERSION}
   DESCRIPTION "Record and modify microcontroller variables through STlink"
   LANGUAGES CXX C)
 
@@ -77,7 +79,7 @@ function(add_integration_test)
 endfunction()
 
 set(CPACK_PACKAGE_NAME "microdatawiggler")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}.0")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_GENERATOR "DEB")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Sami Pukkila <sami.pukkila@gmail.com>")
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libstlink1, libusb-1.0-0, gdb-multiarch, libgrpc++1.51t64")

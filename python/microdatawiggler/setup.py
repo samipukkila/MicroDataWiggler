@@ -1,9 +1,15 @@
+import os
 from pathlib import Path
 from setuptools import setup
 from setuptools.command.build_py import build_py
 
 PROTO_DIR = Path(__file__).resolve().parent.parent.parent / "microdatawiggler" / "proto"
 OUT_DIR = Path(__file__).resolve().parent / "src" / "microdatawiggler"
+VERSION_FILE = Path(__file__).resolve().parent.parent.parent / "VERSION"
+
+
+def read_version():
+    return os.environ.get("PACKAGE_VERSION") or VERSION_FILE.read_text().strip()
 
 
 def generate_proto():
@@ -32,4 +38,4 @@ class BuildPyWithProto(build_py):
 
 
 if __name__ == "__main__":
-    setup(cmdclass={"build_py": BuildPyWithProto})
+    setup(cmdclass={"build_py": BuildPyWithProto}, version=read_version())
