@@ -11,6 +11,32 @@ env:
   MICRODATAWIGGLER_IMAGE: ghcr.io/${{ github.repository_owner }}/microdatawiggler
 
 jobs:
+  ensure-release-label:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+
+    steps:
+    - name: Default to a 'patch' release label if none is set
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        gh label create major --repo "$REPO" --color b60205 --description "Breaking change: bumps the major version" --force >/dev/null
+        gh label create minor --repo "$REPO" --color fbca04 --description "New functionality: bumps the minor version" --force >/dev/null
+        gh label create patch --repo "$REPO" --color 0e8a16 --description "Fix or other non-breaking change: bumps the patch version" --force >/dev/null
+
+        CURRENT=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json labels -q '.labels[].name')
+        if echo "$CURRENT" | grep -qE '^(major|minor|patch)$'; then
+          echo "PR already has a release label, leaving it alone."
+          exit 0
+        fi
+
+        echo "No major/minor/patch label found on this PR; defaulting to 'patch'."
+        gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label patch
+
   build-dev-image:
     runs-on: ubuntu-latest
 
