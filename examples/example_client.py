@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import time
 
+from pprint import pprint
+
 from microdatawiggler import MicrodatawigglerClient, MicrodatawigglerLauncher
 
 ELF_PATH = "/elf_files/simple.elf"
@@ -34,6 +36,15 @@ def main():
             print(f"  test_value2 = {hex(test_value2)}, readback2 = {hex(readback2)}")
             if test_value2 != readback2:
                 raise RuntimeError(f"test_value2 ({hex(test_value2)}) != readback2 ({hex(readback2)})")
+
+            client.start_recording(["cnt_uint8_t", "cnt_float"], sample_rate_hz=5)
+            time.sleep(0.5)
+            client.write_variable("cnt_uint8_t", 0)
+            time.sleep(0.5)
+            client.stop_recording()
+            results = client.fetch_recording()
+            print(f"\n--- Recording results ---\n")
+            pprint(results)
 
 
 if __name__ == "__main__":
